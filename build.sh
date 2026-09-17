@@ -1,7 +1,7 @@
 #!/bin/zsh
-# Build octranslate and package the Alfred workflow.
+# Build offtranslate and package the Alfred workflow.
 #
-#   ./build.sh              build workflow/octranslate
+#   ./build.sh              build workflow/offtranslate
 #   ./build.sh --check      build, then report language availability
 #   ./build.sh --package    build, then produce the .alfredworkflow bundle
 
@@ -9,8 +9,8 @@ set -euo pipefail
 cd "${0:A:h}"
 
 DEPLOY_TARGET=26.0
-BIN=workflow/octranslate
-SRC=src/octranslate.swift
+BIN=workflow/offtranslate
+SRC=src/offtranslate.swift
 NAME="Offline Translator"
 
 if ! command -v swiftc >/dev/null 2>&1; then
@@ -27,7 +27,7 @@ fi
 
 build() {
   print "Building $BIN ..."
-  local arm=build/octranslate-arm64 intel=build/octranslate-x86_64
+  local arm=build/offtranslate-arm64 intel=build/offtranslate-x86_64
   mkdir -p build workflow
 
   swiftc -O -parse-as-library -target "arm64-apple-macos${DEPLOY_TARGET}" "$SRC" -o "$arm"
@@ -47,7 +47,7 @@ build() {
 check() {
   print "\n--- Language availability ---"
   "$BIN" --list
-  local pair=${OCTRANSLATE_PAIR:-en,pl}
+  local pair=${OFFTRANSLATE_PAIR:-en,pl}
   local a=${pair%%,*} b=${pair##*,}
   print "\n--- Default pair ($a <-> $b) ---"
   local ok=1

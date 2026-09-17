@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>bundleid</key>
-	<string>ski.kujawin.octranslate</string>
+	<string>ski.kujawin.offtranslate</string>
 	<key>category</key>
 	<string>Tools</string>
 	<key>connections</key>
@@ -99,7 +99,7 @@
 				<key>runningsubtext</key>
 				<string>Translating…</string>
 				<key>script</key>
-				<string>./octranslate --json "$1"</string>
+				<string>./offtranslate --json "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
@@ -170,7 +170,7 @@
 				<key>escaping</key>
 				<integer>102</integer>
 				<key>script</key>
-				<string>./octranslate --plain "$1"</string>
+				<string>./offtranslate --plain "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
@@ -246,10 +246,10 @@
   Universal Action  translate the current selection
   Hotkey            unassigned by default; translates the selection and pastes it
 
-Set the default pair with the OCTRANSLATE_PAIR workflow variable, e.g. "en,pl".
+Set the default pair with the OFFTRANSLATE_PAIR workflow variable, e.g. "en,pl".
 
 Languages must be downloaded once in System Settings &gt; General &gt; Language &amp; Region &gt;
-Translation Languages. Run ./octranslate --list in the workflow folder to see what is ready.</string>
+Translation Languages. Run ./offtranslate --list in the workflow folder to see what is ready.</string>
 	<key>uidata</key>
 	<dict>
 		<key>1A000000-0000-0000-0000-00000000F1LT</key>
@@ -297,7 +297,7 @@ Translation Languages. Run ./octranslate --list in the workflow folder to see wh
 	</dict>
 	<key>variables</key>
 	<dict>
-		<key>OCTRANSLATE_PAIR</key>
+		<key>OFFTRANSLATE_PAIR</key>
 		<string>en,pl</string>
 	</dict>
 	<key>variablesdontexport</key>

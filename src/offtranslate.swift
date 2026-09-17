@@ -1,4 +1,4 @@
-// octranslate — offline translation via Apple's on-device models.
+// offtranslate — offline translation via Apple's on-device models.
 //
 // Uses Translation.framework for the translation itself and NLLanguageRecognizer
 // for source-language detection. No network, no third-party engine.
@@ -96,10 +96,10 @@ struct Options {
 }
 
 let usage = """
-octranslate — offline translation using macOS on-device models
+offtranslate — offline translation using macOS on-device models
 
 USAGE
-  octranslate [options] [text...]        text is also accepted on stdin
+  offtranslate [options] [text...]        text is also accepted on stdin
 
 OPTIONS
   --pair A,B      two-way pair: detect which side the text is, translate to the other
@@ -111,8 +111,8 @@ OPTIONS
   -h, --help      this text
 
 LANG is a BCP-47 code: en, pl, pt-BR, zh-Hans.
-With no --pair/--from/--to, the pair comes from OCTRANSLATE_PAIR (default "en,pl").
-A leading ">LANG " in the text overrides the target, e.g. octranslate ">de hello".
+With no --pair/--from/--to, the pair comes from OFFTRANSLATE_PAIR (default "en,pl").
+A leading ">LANG " in the text overrides the target, e.g. offtranslate ">de hello".
 """
 
 func parse(_ argv: [String]) -> Options {
@@ -155,7 +155,7 @@ func parse(_ argv: [String]) -> Options {
 }
 
 func defaultPair() -> [Locale.Language] {
-    let raw = ProcessInfo.processInfo.environment["OCTRANSLATE_PAIR"] ?? "en,pl"
+    let raw = ProcessInfo.processInfo.environment["OFFTRANSLATE_PAIR"] ?? "en,pl"
     let languages = raw.split(separator: ",")
         .map { Locale.Language(identifier: $0.trimmingCharacters(in: .whitespaces)) }
     return languages.count == 2 ? languages : [Locale.Language(identifier: "en"), Locale.Language(identifier: "pl")]
@@ -233,7 +233,7 @@ struct OCTranslate {
         } else if let from = options.from {
             guard let other = pair.first(where: { code(of: $0) != code(of: from) }) else {
                 emit([Row(title: "No target language",
-                          subtitle: "Pass --to, or set OCTRANSLATE_PAIR to include \(code(of: from)).", arg: nil)],
+                          subtitle: "Pass --to, or set OFFTRANSLATE_PAIR to include \(code(of: from)).", arg: nil)],
                      mode: options.mode, failed: true)
             }
             (source, target) = (from, other)
@@ -265,7 +265,7 @@ struct OCTranslate {
                  mode: options.mode, failed: true)
         case .unsupported:
             emit([Row(title: "\(displayName(of: source)) → \(displayName(of: target)) is not supported",
-                      subtitle: "Run octranslate --list to see what is available.", arg: nil)],
+                      subtitle: "Run offtranslate --list to see what is available.", arg: nil)],
                  mode: options.mode, failed: true)
         @unknown default:
             break

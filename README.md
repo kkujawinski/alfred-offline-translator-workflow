@@ -68,7 +68,7 @@ Airplane mode changes nothing.
 ## Language support
 
 Apple exposes 38 locale variants covering 23 language codes. Most ship pre-installed; the rest
-download on demand. As reported by `octranslate --list` on macOS 26.6.2:
+download on demand. As reported by `offtranslate --list` on macOS 26.6.2:
 
 | Status | Languages |
 |---|---|
@@ -78,7 +78,7 @@ download on demand. As reported by `octranslate --list` on macOS 26.6.2:
 **Downloading a language.** System Settings → General → Language & Region →
 **Translation Languages** → add the language. (Or open the Translate app, select the pair, and
 accept the prompt.) A headless process cannot show Apple's download prompt, so this step is
-manual once per language; `octranslate` detects a missing model and prints this instruction
+manual once per language; `offtranslate` detects a missing model and prints this instruction
 rather than failing obscurely.
 
 ---
@@ -86,7 +86,7 @@ rather than failing obscurely.
 ## How it works
 
 ```
-Alfred Script Filter ──► octranslate "<query>" ──► JSON for Alfred
+Alfred Script Filter ──► offtranslate "<query>" ──► JSON for Alfred
                               │
                               ├─ NLLanguageRecognizer, constrained to a candidate set
                               │     └─ picks the source language, target follows from flags
@@ -121,7 +121,7 @@ while `NLLanguage` uses `zh-Hans` / `zh-Hant` as whole identifiers.
 The binary is generic; the Alfred workflow is just one caller.
 
 ```
-octranslate [options] [text...]           # text also accepted on stdin
+offtranslate [options] [text...]           # text also accepted on stdin
 
   --pair A,B        two-way pair; detect which side, translate to the other
   --from LANG       explicit source (skips detection)
@@ -133,19 +133,19 @@ octranslate [options] [text...]           # text also accepted on stdin
 ```
 
 `LANG` is a BCP-47 code: `en`, `pl`, `pt-BR`, `zh-Hans`. With no `--pair`/`--from`/`--to`,
-the default pair is read from `OCTRANSLATE_PAIR` (falling back to `en,pl`).
+the default pair is read from `OFFTRANSLATE_PAIR` (falling back to `en,pl`).
 
 ```
-$ octranslate --plain --to de "Good morning, how are you today?"
+$ offtranslate --plain --to de "Good morning, how are you today?"
 Guten Morgen, wie geht es dir heute?
 
-$ echo "Bonjour tout le monde" | octranslate --plain --to en
+$ echo "Bonjour tout le monde" | offtranslate --plain --to en
 hello everyone
 
-$ octranslate --plain ">ja Good morning"
+$ offtranslate --plain ">ja Good morning"
 おはようございます
 
-$ octranslate --plain --from es --to it "Buenos días"
+$ offtranslate --plain --from es --to it "Buenos días"
 Buongiorno
 ```
 
@@ -165,7 +165,7 @@ row explaining the fix. In `--plain` mode those same cases go to stderr with exi
 | Universal Action → *Translate offline* | Translate the current selection in any app |
 | Hotkey (unassigned by default) | Translate the selection and paste it in place |
 
-The default pair is the `OCTRANSLATE_PAIR` workflow variable (Alfred → workflow → [x] variables),
+The default pair is the `OFFTRANSLATE_PAIR` workflow variable (Alfred → workflow → [x] variables),
 so you can switch to `en,de` without rebuilding. For a second permanent pair, duplicate the
 Script Filter and give it its own keyword plus a `--pair` argument.
 
@@ -194,9 +194,9 @@ once you pause.
 
 ```
 build.sh                        compiles the CLI, checks availability, packages the workflow
-src/octranslate.swift           detection + availability + translation + Alfred JSON
+src/offtranslate.swift           detection + availability + translation + Alfred JSON
 workflow/info.plist             Alfred workflow (Script Filter, Universal Action, hotkey)
-workflow/octranslate            built universal binary (git-ignored)
+workflow/offtranslate            built universal binary (git-ignored)
 fallback/shortcut.md            Shortcuts variant for machines without Xcode CLT
 Offline Translator.alfredworkflow   packaged bundle (git-ignored)
 ```
