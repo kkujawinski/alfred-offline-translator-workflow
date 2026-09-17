@@ -1,0 +1,287 @@
+// octranslate — offline translation via Apple's on-device models.
+//
+// Uses Translation.framework for the translation itself and NLLanguageRecognizer
+// for source-language detection. No network, no third-party engine.
+
+import Foundation
+import NaturalLanguage
+import Translation
+
+// MARK: - Language plumbing
+
+/// Translation reports `zh`; NLLanguage distinguishes `zh-Hans` and `zh-Hant`.
+func nlLanguage(for language: Locale.Language) -> NLLanguage? {
+    guard let code = language.languageCode?.identifier else { return nil }
+    if code == "zh" {
+        return NLLanguage(rawValue: language.script?.identifier == "Hant" ? "zh-Hant" : "zh-Hans")
+    }
+    return NLLanguage(rawValue: code)
+}
+
+func code(of language: Locale.Language) -> String {
+    guard let code = language.languageCode?.identifier else { return language.maximalIdentifier }
+    if code == "zh" { return language.script?.identifier == "Hant" ? "zh-Hant" : "zh-Hans" }
+    return code
+}
+
+func displayName(of language: Locale.Language) -> String {
+    let id = code(of: language)
+    return Locale.current.localizedString(forIdentifier: id)
+        ?? Locale.current.localizedString(forLanguageCode: id)
+        ?? id
+}
+
+/// One entry per distinct language code, so `en-GB` and `en-US` do not both
+/// end up in a detection constraint set.
+func deduplicated(_ languages: [Locale.Language]) -> [Locale.Language] {
+    var seen = Set<String>()
+    return languages.filter { seen.insert(code(of: $0)).inserted }
+}
+
+func detect(_ text: String, among candidates: [Locale.Language]) -> Locale.Language? {
+    guard candidates.count > 1 else { return candidates.first }
+    let recognizer = NLLanguageRecognizer()
+    recognizer.languageConstraints = candidates.compactMap(nlLanguage(for:))
+    recognizer.processString(text)
+    guard let dominant = recognizer.dominantLanguage else { return nil }
+    return candidates.first { nlLanguage(for: $0) == dominant }
+}
+
+// MARK: - Output
+
+enum OutputMode { case alfred, plain }
+
+struct Row {
+    var title: String
+    var subtitle: String
+    var arg: String?
+}
+
+func emit(_ rows: [Row], mode: OutputMode, failed: Bool = false) -> Never {
+    switch mode {
+    case .plain:
+        if failed {
+            FileHandle.standardError.write(Data((rows[0].title + ": " + rows[0].subtitle + "\n").utf8))
+            exit(1)
+        }
+        print(rows[0].arg ?? rows[0].title)
+    case .alfred:
+        let items: [[String: Any]] = rows.map { row in
+            var item: [String: Any] = [
+                "title": row.title,
+                "subtitle": row.subtitle,
+                "valid": row.arg != nil,
+            ]
+            if let arg = row.arg {
+                item["arg"] = arg
+                item["text"] = ["copy": arg, "largetype": arg]
+            }
+            return item
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: ["items": items])) ?? Data("{\"items\":[]}".utf8)
+        FileHandle.standardOutput.write(data)
+    }
+    exit(0)
+}
+
+// MARK: - Arguments
+
+struct Options {
+    var from: Locale.Language?
+    var to: Locale.Language?
+    var pair: [Locale.Language]?
+    var list = false
+    var mode: OutputMode = .alfred
+    var text = ""
+}
+
+let usage = """
+octranslate — offline translation using macOS on-device models
+
+USAGE
+  octranslate [options] [text...]        text is also accepted on stdin
+
+OPTIONS
+  --pair A,B      two-way pair: detect which side the text is, translate to the other
+  --from LANG     explicit source language (skips detection)
+  --to LANG       explicit target language; source detected from installed languages
+  --list          print supported languages and their install status
+  --plain         print the bare translation instead of Alfred Script Filter JSON
+  --json          force Alfred Script Filter JSON (the default)
+  -h, --help      this text
+
+LANG is a BCP-47 code: en, pl, pt-BR, zh-Hans.
+With no --pair/--from/--to, the pair comes from OCTRANSLATE_PAIR (default "en,pl").
+A leading ">LANG " in the text overrides the target, e.g. octranslate ">de hello".
+"""
+
+func parse(_ argv: [String]) -> Options {
+    var options = Options()
+    var words: [String] = []
+    var index = 0
+    while index < argv.count {
+        let argument = argv[index]
+        func value() -> String {
+            index += 1
+            return index < argv.count ? argv[index] : ""
+        }
+        switch argument {
+        case "--from": options.from = Locale.Language(identifier: value())
+        case "--to": options.to = Locale.Language(identifier: value())
+        case "--pair":
+            options.pair = value().split(separator: ",")
+                .map { Locale.Language(identifier: $0.trimmingCharacters(in: .whitespaces)) }
+        case "--list": options.list = true
+        case "--plain": options.mode = .plain
+        case "--json": options.mode = .alfred
+        case "-h", "--help": print(usage); exit(0)
+        default: words.append(argument)
+        }
+        index += 1
+    }
+    options.text = words.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // Inline target override: ">de some text"
+    if options.text.hasPrefix(">") {
+        let rest = options.text.dropFirst()
+        let head = rest.prefix { !$0.isWhitespace }
+        if !head.isEmpty {
+            options.to = Locale.Language(identifier: String(head))
+            options.pair = nil
+            options.text = rest.dropFirst(head.count).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+    return options
+}
+
+func defaultPair() -> [Locale.Language] {
+    let raw = ProcessInfo.processInfo.environment["OCTRANSLATE_PAIR"] ?? "en,pl"
+    let languages = raw.split(separator: ",")
+        .map { Locale.Language(identifier: $0.trimmingCharacters(in: .whitespaces)) }
+    return languages.count == 2 ? languages : [Locale.Language(identifier: "en"), Locale.Language(identifier: "pl")]
+}
+
+// MARK: - Main
+
+@main
+struct OCTranslate {
+    static let availability = LanguageAvailability()
+
+    static func installed(_ all: [Locale.Language]) async -> [Locale.Language] {
+        var result: [Locale.Language] = []
+        for language in all where await availability.status(from: language, to: nil) == .installed {
+            result.append(language)
+        }
+        return result
+    }
+
+    static func runList() async -> Never {
+        let all = deduplicated(await availability.supportedLanguages)
+            .sorted { code(of: $0) < code(of: $1) }
+        var ready: [String] = []
+        var missing: [String] = []
+        for language in all {
+            let entry = "\(code(of: language))  \(displayName(of: language))"
+            if await availability.status(from: language, to: nil) == .installed {
+                ready.append(entry)
+            } else {
+                missing.append(entry)
+            }
+        }
+        print("Installed (\(ready.count)):")
+        ready.forEach { print("  " + $0) }
+        print("\nSupported, not downloaded (\(missing.count)):")
+        missing.forEach { print("  " + $0) }
+        print("\nDownload more: System Settings > General > Language & Region > Translation Languages")
+        exit(0)
+    }
+
+    static func readStdin() -> String {
+        guard isatty(FileHandle.standardInput.fileDescriptor) == 0 else { return "" }
+        let data = FileHandle.standardInput.readDataToEndOfFile()
+        return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func main() async {
+        var options = parse(Array(CommandLine.arguments.dropFirst()))
+        if options.list { await runList() }
+        if options.text.isEmpty { options.text = readStdin() }
+
+        guard !options.text.isEmpty else {
+            emit([Row(title: "Type something to translate",
+                      subtitle: "Direction is detected automatically. Prefix \">de\" to force a target.",
+                      arg: nil)],
+                 mode: options.mode, failed: options.mode == .plain)
+        }
+
+        // Resolve source and target.
+        let source: Locale.Language
+        let target: Locale.Language
+        let pair = options.pair ?? defaultPair()
+
+        if let from = options.from, let to = options.to {
+            (source, target) = (from, to)
+        } else if let to = options.to {
+            let candidates = deduplicated(await installed(await availability.supportedLanguages))
+                .filter { code(of: $0) != code(of: to) }
+            guard let detected = detect(options.text, among: candidates) else {
+                emit([Row(title: "Could not detect the source language",
+                          subtitle: "Pass --from to say what it is.", arg: nil)],
+                     mode: options.mode, failed: true)
+            }
+            (source, target) = (detected, to)
+        } else if let from = options.from {
+            guard let other = pair.first(where: { code(of: $0) != code(of: from) }) else {
+                emit([Row(title: "No target language",
+                          subtitle: "Pass --to, or set OCTRANSLATE_PAIR to include \(code(of: from)).", arg: nil)],
+                     mode: options.mode, failed: true)
+            }
+            (source, target) = (from, other)
+        } else {
+            guard pair.count == 2 else {
+                emit([Row(title: "Bad pair", subtitle: "Expected two languages, e.g. --pair en,pl", arg: nil)],
+                     mode: options.mode, failed: true)
+            }
+            let detected = detect(options.text, among: pair) ?? pair[0]
+            source = detected
+            target = code(of: detected) == code(of: pair[0]) ? pair[1] : pair[0]
+        }
+
+        guard code(of: source) != code(of: target) else {
+            emit([Row(title: options.text,
+                      subtitle: "Source and target are both \(displayName(of: source)) — nothing to do.",
+                      arg: options.text)],
+                 mode: options.mode)
+        }
+
+        // Check the model is on disk before asking for a session.
+        switch await availability.status(from: source, to: target) {
+        case .installed:
+            break
+        case .supported:
+            emit([Row(title: "\(displayName(of: source)) → \(displayName(of: target)) is not downloaded",
+                      subtitle: "System Settings > General > Language & Region > Translation Languages",
+                      arg: nil)],
+                 mode: options.mode, failed: true)
+        case .unsupported:
+            emit([Row(title: "\(displayName(of: source)) → \(displayName(of: target)) is not supported",
+                      subtitle: "Run octranslate --list to see what is available.", arg: nil)],
+                 mode: options.mode, failed: true)
+        @unknown default:
+            break
+        }
+
+        do {
+            let session = TranslationSession(installedSource: source, target: target)
+            let response = try await session.translate(options.text)
+            emit([Row(title: response.targetText,
+                      subtitle: "\(displayName(of: source)) → \(displayName(of: target))",
+                      arg: response.targetText)],
+                 mode: options.mode)
+        } catch {
+            emit([Row(title: "Translation failed",
+                      subtitle: "\(error.localizedDescription)", arg: nil)],
+                 mode: options.mode, failed: true)
+        }
+    }
+}
