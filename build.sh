@@ -3,6 +3,7 @@
 #
 #   ./build.sh              build workflow/offtranslate
 #   ./build.sh --check      build, then report language availability
+#   ./build.sh --icon       regenerate workflow/icon.png
 #   ./build.sh --package    build, then produce the .alfredworkflow bundle
 
 set -euo pipefail
@@ -44,6 +45,11 @@ build() {
   rm -rf build
 }
 
+icon() {
+  print "Generating workflow/icon.png ..."
+  swift tools/make-icon.swift workflow/icon.png
+}
+
 check() {
   print "\n--- Language availability ---"
   "$BIN" --list
@@ -70,6 +76,7 @@ check() {
 
 package() {
   local out="$NAME.alfredworkflow"
+  [[ -f workflow/icon.png ]] || icon
   rm -f "$out"
   (cd workflow && zip -q -r -X "../$out" . -x '.*')
   print "Packaged $out ($(du -h "$out" | cut -f1))"
@@ -79,6 +86,7 @@ package() {
 build
 case "${1:-}" in
   --check) check ;;
+  --icon) icon ;;
   --package) package ;;
   "") ;;
   *) print -u2 "Unknown option: $1"; exit 2 ;;
