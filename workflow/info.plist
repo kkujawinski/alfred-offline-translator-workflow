@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>bundleid</key>
-	<string>ski.kujawin.offtranslate</string>
+	<string>com.digit11.offtranslate</string>
 	<key>category</key>
 	<string>Tools</string>
 	<key>connections</key>
