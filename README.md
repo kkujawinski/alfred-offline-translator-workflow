@@ -14,7 +14,7 @@ Direction is detected automatically, so one keyword works both ways.
 ## Quick start
 
 ```
-git clone <this repo> && cd alfred-offline-translator-workflow
+git clone https://github.com/kkujawinski/alfred-offline-translator-workflow.git && cd alfred-offline-translator-workflow
 ./build.sh --check        # build + report which languages are ready
 ./build.sh --package      # produce "Offline Translator.alfredworkflow"
 open "Offline Translator.alfredworkflow"

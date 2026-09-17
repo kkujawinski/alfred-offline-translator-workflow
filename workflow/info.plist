@@ -305,6 +305,6 @@ Translation Languages. Run ./offtranslate --list in the workflow folder to see w
 	<key>version</key>
 	<string>1.0.0</string>
 	<key>webaddress</key>
-	<string>https://github.com/kkuj/alfred-offline-translator-workflow</string>
+	<string>https://github.com/kkujawinski/alfred-offline-translator-workflow</string>
 </dict>
 </plist>
