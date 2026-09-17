@@ -6,7 +6,7 @@ No API keys, no network, no third-party translation engine.
 Any language pair Apple's on-device models support — 23 language codes across 38 locale variants.
 English ⇄ Polish is the default pair; everything else is a flag or a second keyword.
 
-Type `tr some text` in Alfred → the translation appears inline → <kbd>Enter</kbd> copies it.
+Type `t some text` in Alfred → the translation appears inline → <kbd>Enter</kbd> copies it.
 Direction is detected automatically, so one keyword works both ways.
 
 ---
@@ -160,8 +160,8 @@ row explaining the fix. In `--plain` mode those same cases go to stderr with exi
 
 | Trigger | What it does |
 |---|---|
-| `tr <text>` | Default pair, direction auto-detected, <kbd>Enter</kbd> copies |
-| `tr >de <text>` | Inline target override, no extra keyword needed |
+| `t <text>` | Default pair, direction auto-detected, <kbd>Enter</kbd> copies |
+| `t >de <text>` | Inline target override, no extra keyword needed |
 | Universal Action → *Translate offline* | Translate the current selection in any app |
 | Hotkey (unassigned by default) | Translate the selection and paste it in place |
 

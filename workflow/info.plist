@@ -87,7 +87,7 @@
 				<key>escaping</key>
 				<integer>102</integer>
 				<key>keyword</key>
-				<string>tr</string>
+				<string>t</string>
 				<key>queuedelaycustom</key>
 				<integer>3</integer>
 				<key>queuedelayimmediatelyinitially</key>
@@ -241,8 +241,8 @@
 	<key>readme</key>
 	<string>Offline translation using Apple's on-device models (Translation.framework).
 
-  tr &lt;text&gt;        translate between the configured pair, direction auto-detected
-  tr &gt;de &lt;text&gt;    force German as the target
+  t &lt;text&gt;         translate between the configured pair, direction auto-detected
+  t &gt;de &lt;text&gt;     force German as the target
   Universal Action  translate the current selection
   Hotkey            unassigned by default; translates the selection and pastes it
 
