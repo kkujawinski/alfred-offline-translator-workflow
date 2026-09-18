@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and release (e.g. v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # The macOS 26 SDK is required: TranslationSession(installedSource:target:)
+    # does not exist in earlier SDKs, and build.sh targets arm64-apple-macos26.0.
+    runs-on: macos-26
+
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Select the newest Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          swiftc --version
+          xcrun --show-sdk-version
+
+      - name: Resolve the version
+        id: version
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp the version into info.plist
+        run: |
+          plutil -replace version -string "${{ steps.version.outputs.version }}" workflow/info.plist
+          plutil -lint workflow/info.plist
+          plutil -extract version raw workflow/info.plist
+
+      - name: Build and package
+        run: ./build.sh --package
+
+      - name: Verify the bundle
+        run: |
+          set -euo pipefail
+          lipo -info workflow/offtranslate
+          "$PWD/workflow/offtranslate" --help > /dev/null
+          unzip -l "Offline Translator.alfredworkflow"
+          for f in info.plist icon.png offtranslate; do
+            unzip -l "Offline Translator.alfredworkflow" | grep -q " $f\$" \
+              || { echo "missing $f in bundle"; exit 1; }
+          done
+
+      # Translation models are not installed on CI runners, so only the paths
+      # that do not need one can be exercised here.
+      - name: Smoke-test the CLI
+        run: |
+          set -euo pipefail
+          ./workflow/offtranslate --list
+          ./workflow/offtranslate --plain "" 2>&1 | grep -q . || true
+
+      - name: Name the asset
+        id: asset
+        run: |
+          NAME="Offline-Translator-${{ steps.version.outputs.tag }}.alfredworkflow"
+          cp "Offline Translator.alfredworkflow" "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.asset.outputs.name }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes \
+            --verify-tag

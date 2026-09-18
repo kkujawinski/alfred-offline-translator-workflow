@@ -203,6 +203,26 @@ Offline Translator.alfredworkflow   packaged bundle (git-ignored)
 
 ---
 
+## Releasing
+
+Pushing a `v*` tag builds the workflow on a `macos-26` runner and publishes it as a GitHub
+Release:
+
+```
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+The job stamps the tag into `info.plist`'s `version` (so Alfred shows the right number),
+runs `./build.sh --package`, checks the bundle contains `info.plist`, `icon.png` and a
+universal `offtranslate`, and attaches `Offline-Translator-v1.1.0.alfredworkflow` with
+auto-generated notes. `workflow_dispatch` runs the same job against an existing tag.
+
+CI cannot run a translation — runners have no language models installed — so it verifies
+`--list`, `--help` and the bundle contents rather than output quality.
+
+---
+
 ## Limitations
 
 - **macOS 26+ only.** On macOS 15 the same framework exists, but a session can only be created
