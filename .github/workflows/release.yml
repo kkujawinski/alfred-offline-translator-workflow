@@ -1,84 +1,152 @@
-name: Release
-
+name: Alfred workflow build & release
 on:
   push:
-    tags:
-      - 'v*'
+    tags: [ 'v*.*.*' ]
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to build and release (e.g. v1.0.0)'
+      version:
+        description: 'Version (e.g. 1.0.0)'
         required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    # The macOS 26 SDK is required: TranslationSession(installedSource:target:)
-    # does not exist in earlier SDKs, and build.sh targets arm64-apple-macos26.0.
+  build:
+    # The macOS 26 SDK is required: build.sh targets arm64-apple-macos26.0 and
+    # TranslationSession(installedSource:target:) does not exist in earlier SDKs.
     runs-on: macos-26
 
     steps:
-      - name: Check out the tag
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
 
-      - name: Select the newest Xcode
+      - name: Get tag version
+        id: get_tag_version
         run: |
-          sudo xcode-select -s /Applications/Xcode.app
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "TAG_VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Report the toolchain
+        run: |
+          sw_vers
           swiftc --version
           xcrun --show-sdk-version
 
-      - name: Resolve the version
-        id: version
+      - name: Update workflow version
         run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Stamp the version into info.plist
-        run: |
-          plutil -replace version -string "${{ steps.version.outputs.version }}" workflow/info.plist
+          plutil -replace version -string "${{ steps.get_tag_version.outputs.TAG_VERSION }}" workflow/info.plist
           plutil -lint workflow/info.plist
-          plutil -extract version raw workflow/info.plist
 
-      - name: Build and package
-        run: ./build.sh --package
+      # A throwaway keychain holds the Developer ID identity for this job only.
+      # It is never the login keychain, and the cleanup step deletes it.
+      - name: Import the signing certificate
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
+          echo -n "$MACOS_CERTIFICATE_P12" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          # Without this, codesign blocks on an interactive keychain prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
+
+          rm -f "$CERT_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Sign the binary
+        run: ./build.sh --sign
+
+      # SKIP_BUILD keeps the signed binary: a plain --package would recompile
+      # over it and discard the signature.
+      - name: Package
+        run: SKIP_BUILD=1 ./build.sh --package
+
+      - name: Notarise
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/asc.p8"
+          echo -n "$ASC_KEY_P8" | base64 --decode > "$KEY_PATH"
+
+          # notarytool accepts .zip, .pkg and .dmg only, and .alfredworkflow is
+          # already a zip, so it is submitted under a .zip name.
+          cp "Offline Translator.alfredworkflow" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$KEY_PATH" \
+            --key-id "$ASC_KEY_ID" \
+            --issuer "$ASC_ISSUER_ID" \
+            --wait --timeout 30m
+
+          rm -f "$KEY_PATH" "$RUNNER_TEMP/notarize.zip"
+
+      # A bare Mach-O cannot be stapled — stapler only supports bundles, disk
+      # images and installer packages — so Gatekeeper verifies online instead.
       - name: Verify the bundle
         run: |
           set -euo pipefail
           lipo -info workflow/offtranslate
-          "$PWD/workflow/offtranslate" --help > /dev/null
+          codesign --verify --strict --verbose=2 workflow/offtranslate
+          codesign -dvv workflow/offtranslate 2>&1 | grep -E '^(Authority|TeamIdentifier)'
           unzip -l "Offline Translator.alfredworkflow"
           for f in info.plist icon.png offtranslate; do
             unzip -l "Offline Translator.alfredworkflow" | grep -q " $f\$" \
               || { echo "missing $f in bundle"; exit 1; }
           done
 
-      # Translation models are not installed on CI runners, so only the paths
-      # that do not need one can be exercised here.
+      # Runners have no translation models installed, so only the paths that do
+      # not need one can be exercised here.
       - name: Smoke-test the CLI
         run: |
-          set -euo pipefail
+          ./workflow/offtranslate --help > /dev/null
           ./workflow/offtranslate --list
-          ./workflow/offtranslate --plain "" 2>&1 | grep -q . || true
 
       - name: Name the asset
         id: asset
         run: |
-          NAME="Offline-Translator-${{ steps.version.outputs.tag }}.alfredworkflow"
+          NAME="Offline-Translator-v${{ steps.get_tag_version.outputs.TAG_VERSION }}.alfredworkflow"
           cp "Offline Translator.alfredworkflow" "$NAME"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> $GITHUB_OUTPUT
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" \
+          gh release create "v${{ steps.get_tag_version.outputs.TAG_VERSION }}" \
             "${{ steps.asset.outputs.name }}" \
-            --title "${{ steps.version.outputs.tag }}" \
-            --generate-notes \
-            --verify-tag
+            --title "v${{ steps.get_tag_version.outputs.TAG_VERSION }}" \
+            --generate-notes
+
+      - name: Clean up the keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" || true
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/asc.p8"

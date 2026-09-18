@@ -4,7 +4,11 @@
 #   ./build.sh              build workflow/offtranslate
 #   ./build.sh --check      build, then report language availability
 #   ./build.sh --icon       regenerate workflow/icon.png
+#   ./build.sh --sign       build, then codesign the binary for notarisation
 #   ./build.sh --package    build, then produce the .alfredworkflow bundle
+#
+# SKIP_BUILD=1 skips the compile step, so an already-signed binary survives
+# packaging:  ./build.sh && ./build.sh --sign && SKIP_BUILD=1 ./build.sh --package
 
 set -euo pipefail
 cd "${0:A:h}"
@@ -74,6 +78,21 @@ check() {
   print "\nBoth directions work offline."
 }
 
+# Notarisation requires a Developer ID Application identity, a secure timestamp
+# and the hardened runtime. APPLE_SIGNING_IDENTITY names the identity, e.g.
+# "Developer ID Application: Kamil Kujawinski (TEAMID)" — `security find-identity
+# -v -p codesigning` lists what the keychain holds.
+sign() {
+  # codesign resolves a partial identity name, so the default works whenever the
+  # keychain holds exactly one Developer ID Application certificate.
+  local identity=${APPLE_SIGNING_IDENTITY:-"Developer ID Application"}
+  print "Signing $BIN as \"$identity\" ..."
+  codesign --force --timestamp --options runtime \
+           --sign "$identity" "$BIN"
+  codesign --verify --strict --verbose=2 "$BIN"
+  codesign -dvv "$BIN" 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)' || true
+}
+
 package() {
   local out="$NAME.alfredworkflow"
   [[ -f workflow/icon.png ]] || icon
@@ -83,10 +102,11 @@ package() {
   print "Double-click it to install, or run: open \"$out\""
 }
 
-build
+[[ "${SKIP_BUILD:-0}" == "1" ]] || build
 case "${1:-}" in
   --check) check ;;
   --icon) icon ;;
+  --sign) sign ;;
   --package) package ;;
   "") ;;
   *) print -u2 "Unknown option: $1"; exit 2 ;;

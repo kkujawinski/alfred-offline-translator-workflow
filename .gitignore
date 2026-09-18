@@ -1,4 +1,12 @@
 .DS_Store
+# Credentials — never commit
+secret.sh
+*.p8
+*.p12
+*.cer
+*.certSigningRequest
+notarize.zip
+Offline-Translator-v*.alfredworkflow
 workflow/offtranslate
 *.alfredworkflow
 build/

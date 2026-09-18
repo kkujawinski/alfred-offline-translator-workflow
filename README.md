@@ -206,8 +206,7 @@ Offline Translator.alfredworkflow   packaged bundle (git-ignored)
 
 ## Releasing
 
-Pushing a `v*` tag builds the workflow on a `macos-26` runner and publishes it as a GitHub
-Release:
+Pushing a `v*` tag builds, signs, notarises and publishes the workflow as a GitHub Release:
 
 ```
 git tag v1.1.0
@@ -215,12 +214,64 @@ git push origin v1.1.0
 ```
 
 The job stamps the tag into `info.plist`'s `version` (so Alfred shows the right number),
-runs `./build.sh --package`, checks the bundle contains `info.plist`, `icon.png` and a
-universal `offtranslate`, and attaches `Offline-Translator-v1.1.0.alfredworkflow` with
-auto-generated notes. `workflow_dispatch` runs the same job against an existing tag.
+builds, signs the binary, packages the bundle, submits it to Apple's notary service, checks
+the bundle contains `info.plist`, `icon.png` and a universal `offtranslate`, and attaches
+`Offline-Translator-v1.1.0.alfredworkflow` with auto-generated notes. `workflow_dispatch`
+runs the same job against an existing tag.
 
-CI cannot run a translation — runners have no language models installed — so it verifies
-`--list`, `--help` and the bundle contents rather than output quality.
+It runs on GitHub's hosted **`macos-26`** runner. The Developer ID identity is imported from
+a secret into a throwaway keychain for the duration of the job, and deleted afterwards — no
+self-hosted machine, no persistent credentials.
+
+### One-time setup
+
+1. **Create the Developer ID Application certificate.** Apple does not allow Developer ID
+   certificates to be created through the App Store Connect API at all — only the Account
+   Holder can mint one, from the developer portal or Xcode. An API key of any role gets
+   `This operation can only be performed by the Account Holder`.
+   - Keychain Access → Certificate Assistant → *Request a Certificate From a Certificate
+     Authority* → save the CSR to disk.
+   - developer.apple.com → Certificates → **+** → **Developer ID Application**, signed in as
+     the Account Holder → upload the CSR → download the `.cer`.
+   - Install the `.cer`, then export the identity (certificate **and** private key) from
+     Keychain Access as a `.p12`, setting a password.
+
+   Developer ID Application is the only type Apple's notary service accepts — "Apple
+   Development" and "Apple Distribution" certificates are rejected.
+2. **Add five repository secrets** (Settings → Secrets and variables → Actions):
+
+   | Secret | Value |
+   |---|---|
+   | `MACOS_CERTIFICATE_P12` | `base64 -i certificate.p12 \| pbcopy` |
+   | `MACOS_CERTIFICATE_PASSWORD` | the password set when exporting the `.p12` |
+   | `ASC_KEY_ID` | App Store Connect API key ID |
+   | `ASC_ISSUER_ID` | issuer ID from Users and Access → Integrations |
+   | `ASC_KEY_P8` | `base64 -i AuthKey_XXXXXXXXXX.p8 \| pbcopy` |
+
+   The first two sign; the last three notarise. The API key only submits to the notary
+   service, so a non-Account-Holder key is fine here.
+
+### Building and signing locally
+
+Once a Developer ID certificate is in your keychain:
+
+```
+./build.sh && ./build.sh --sign && SKIP_BUILD=1 ./build.sh --package
+```
+
+`SKIP_BUILD=1` matters: a plain `--package` recompiles the binary and throws the signature
+away. `--sign` defaults to the `Developer ID Application` identity, which `codesign` resolves
+by prefix; set `APPLE_SIGNING_IDENTITY` to disambiguate if the keychain holds more than one.
+
+### What CI cannot check
+
+Runners have no translation models installed, so the job verifies `--list`, `--help`, the
+signature and the bundle contents — never translation output.
+
+The binary is signed with the hardened runtime and notarised, but **not stapled**: `stapler`
+only supports bundles, disk images and installer packages, and `offtranslate` is a bare
+Mach-O executable. Gatekeeper therefore checks its notarisation online the first time it
+runs on a new machine.
 
 ---
 
