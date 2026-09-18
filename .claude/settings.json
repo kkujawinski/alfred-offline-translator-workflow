@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(black --check *)",
+      "Bash(plutil -lint *)",
+      "Bash(nm *)",
+      "Bash(pyflakes *)",
+      "Bash(fvm flutter analyze *)",
+      "Bash(plutil -extract *)",
+      "Bash(otool -l *)",
+      "Bash(brew search *)",
+      "Bash(plutil -p *)",
+      "Bash(brew info *)",
+      "mcp__n8n__get_workflow_details",
+      "mcp__n8n__get_node_types",
+      "mcp__n8n__get_workflow_execution"
+    ]
+  }
+}

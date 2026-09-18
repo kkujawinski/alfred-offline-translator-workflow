@@ -33,9 +33,18 @@ func displayName(of language: Locale.Language) -> String {
 
 /// One entry per distinct language code, so `en-GB` and `en-US` do not both
 /// end up in a detection constraint set.
+///
+/// Each entry is rebuilt from the bare code. `supportedLanguages` hands back
+/// maximal identifiers like `en-Latn-IN`, and not every region variant is a
+/// supported translation source — `en-Latn-IN` to `pl` reports `.unsupported`
+/// where plain `en` to `pl` works. Detection only ever identifies a language,
+/// never a region, so the region has to be dropped before the pair is used.
 func deduplicated(_ languages: [Locale.Language]) -> [Locale.Language] {
     var seen = Set<String>()
-    return languages.filter { seen.insert(code(of: $0)).inserted }
+    return languages.compactMap { language in
+        let identifier = code(of: language)
+        return seen.insert(identifier).inserted ? Locale.Language(identifier: identifier) : nil
+    }
 }
 
 func detect(_ text: String, among candidates: [Locale.Language]) -> Locale.Language? {
