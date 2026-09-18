@@ -205,6 +205,24 @@ struct OCTranslate {
         exit(0)
     }
 
+    /// The `?` query in Alfred: one row per language, so the download status is
+    /// visible without opening a terminal.
+    static func listRows() async -> Never {
+        let all = deduplicated(await availability.supportedLanguages)
+            .sorted { displayName(of: $0) < displayName(of: $1) }
+        var rows: [Row] = []
+        for language in all {
+            let ready = await availability.status(from: language, to: nil) == .installed
+            rows.append(Row(
+                title: "\(displayName(of: language))  (\(code(of: language)))",
+                subtitle: ready
+                    ? "Downloaded — ready to translate"
+                    : "Not downloaded — System Settings > General > Language & Region > Translation Languages",
+                arg: ready ? code(of: language) : nil))
+        }
+        emit(rows, mode: .alfred)
+    }
+
     static func readStdin() -> String {
         guard isatty(FileHandle.standardInput.fileDescriptor) == 0 else { return "" }
         let data = FileHandle.standardInput.readDataToEndOfFile()
@@ -216,9 +234,11 @@ struct OCTranslate {
         if options.list { await runList() }
         if options.text.isEmpty { options.text = readStdin() }
 
+        if options.text == "?", options.mode == .alfred { await listRows() }
+
         guard !options.text.isEmpty else {
             emit([Row(title: "Type something to translate",
-                      subtitle: "Direction is detected automatically. Prefix \">de\" to force a target.",
+                      subtitle: "Direction is detected automatically. Prefix \">de\" to force a target, or type ? for the language list.",
                       arg: nil)],
                  mode: options.mode, failed: options.mode == .plain)
         }

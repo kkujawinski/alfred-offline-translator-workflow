@@ -162,12 +162,13 @@ row explaining the fix. In `--plain` mode those same cases go to stderr with exi
 |---|---|
 | `t <text>` | Default pair, direction auto-detected, <kbd>Enter</kbd> copies |
 | `t >de <text>` | Inline target override, no extra keyword needed |
-| Universal Action → *Translate offline* | Translate the current selection in any app |
-| Hotkey (unassigned by default) | Translate the selection and paste it in place |
+| `t ?` | List every language and whether its model is downloaded |
+| Universal Action → *Translate offline* | Translate the selection and paste it over the original |
+| Hotkey (unassigned by default) | Same, without opening Alfred |
 
-The default pair is the `OFFTRANSLATE_PAIR` workflow variable (Alfred → workflow → [x] variables),
-so you can switch to `en,de` without rebuilding. For a second permanent pair, duplicate the
-Script Filter and give it its own keyword plus a `--pair` argument.
+The language pair and the keyword are both exposed in the Workflow's Configuration, so you can
+switch to `en,de` or rename the keyword without editing the workflow. For a second permanent
+pair, duplicate the Script Filter and give it its own keyword plus a `--pair` argument.
 
 ---
 

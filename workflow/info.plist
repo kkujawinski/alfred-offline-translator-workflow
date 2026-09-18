@@ -64,7 +64,7 @@
 	<key>createdby</key>
 	<string>Kamil Kujawinski</string>
 	<key>description</key>
-	<string>Offline translation using Apple's on-device models. No network, no API keys.</string>
+	<string>Offline translation using Apple's on-device models. No network, no API keys. Built with the help of an LLM (Claude).</string>
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
@@ -87,7 +87,7 @@
 				<key>escaping</key>
 				<integer>102</integer>
 				<key>keyword</key>
-				<string>t</string>
+				<string>{var:keyword}</string>
 				<key>queuedelaycustom</key>
 				<integer>3</integer>
 				<key>queuedelayimmediatelyinitially</key>
@@ -105,7 +105,7 @@
 				<key>scriptfile</key>
 				<string></string>
 				<key>subtext</key>
-				<string>Detects the direction. Prefix &gt;de to force a target language.</string>
+				<string>Detects the direction. Prefix &gt;de to force a target language, or type ? for the language list.</string>
 				<key>title</key>
 				<string>Translate offline</string>
 				<key>type</key>
@@ -239,17 +239,34 @@
 		</dict>
 	</array>
 	<key>readme</key>
-	<string>Offline translation using Apple's on-device models (Translation.framework).
+	<string>## Setup
 
-  t &lt;text&gt;         translate between the configured pair, direction auto-detected
-  t &gt;de &lt;text&gt;     force German as the target
-  Universal Action  translate the current selection
-  Hotkey            unassigned by default; translates the selection and pastes it
+Download the languages you want to translate in System Settings → General → Language &amp; Region → Translation Languages. Translation runs entirely on-device, so a language is unavailable until its model is on disk. Type `?` after the keyword to see which languages are ready.
 
-Set the default pair with the OFFTRANSLATE_PAIR workflow variable, e.g. "en,pl".
+## Usage
 
-Languages must be downloaded once in System Settings &gt; General &gt; Language &amp; Region &gt;
-Translation Languages. Run ./offtranslate --list in the workflow folder to see what is ready.</string>
+Translate text between two languages without a network connection via the `t` keyword. The direction is detected automatically, so the same keyword works both ways.
+
+![Translating a phrase](images/translate.jpeg)
+
+* &lt;kbd&gt;↩︎&lt;/kbd&gt; Copy the translation to the clipboard
+* &lt;kbd&gt;⌘&lt;/kbd&gt;&lt;kbd&gt;Y&lt;/kbd&gt; Quick Look the translation in large type
+
+Force a target language by prefixing it with `&gt;`, as in `t &gt;de Good morning`. Type `t ?` to list every supported language and whether its model is downloaded.
+
+![Listing the available languages](images/languages.jpeg)
+
+Translate the text selected in any app via the Universal Action. The translation is pasted over the selection, so this works best in an editable field.
+
+![Translating a selection](images/universal-action.jpeg)
+
+Configure the Hotkey to translate the current selection and paste the result in place, without opening Alfred.
+
+## Workflow Configuration
+
+Set the two languages you translate between in the Workflow's Configuration. Both directions are detected from this pair, so `en,pl` covers English to Polish and Polish to English. The keyword is configurable there as well.
+
+Built with the help of an LLM (Claude).</string>
 	<key>uidata</key>
 	<dict>
 		<key>1A000000-0000-0000-0000-00000000F1LT</key>
@@ -295,10 +312,57 @@ Translation Languages. Run ./offtranslate --list in the workflow folder to see w
 			<integer>310</integer>
 		</dict>
 	</dict>
+	<key>userconfigurationconfig</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string>en,pl</string>
+				<key>placeholder</key>
+				<string>en,pl</string>
+				<key>required</key>
+				<true/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The two languages to translate between, as BCP-47 codes separated by a comma. Text in either language is translated into the other. Examples: en,pl — en,de — pt-BR,ja. Type ? after the keyword to see which languages are downloaded.</string>
+			<key>label</key>
+			<string>Language pair</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>OFFTRANSLATE_PAIR</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string>t</string>
+				<key>placeholder</key>
+				<string>t</string>
+				<key>required</key>
+				<true/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The keyword that triggers the translator.</string>
+			<key>label</key>
+			<string>Keyword</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>keyword</string>
+		</dict>
+	</array>
 	<key>variables</key>
 	<dict>
 		<key>OFFTRANSLATE_PAIR</key>
 		<string>en,pl</string>
+		<key>keyword</key>
+		<string>t</string>
 	</dict>
 	<key>variablesdontexport</key>
 	<array/>
