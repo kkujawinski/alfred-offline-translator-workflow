@@ -284,20 +284,52 @@ struct OCTranslate {
         }
 
         // Check the model is on disk before asking for a session.
-        switch await availability.status(from: source, to: target) {
-        case .installed:
-            break
-        case .supported:
-            emit([Row(title: "\(displayName(of: source)) → \(displayName(of: target)) is not downloaded",
-                      subtitle: "System Settings > General > Language & Region > Translation Languages",
-                      arg: nil)],
-                 mode: options.mode, failed: true)
-        case .unsupported:
-            emit([Row(title: "\(displayName(of: source)) → \(displayName(of: target)) is not supported",
-                      subtitle: "Run offtranslate --list to see what is available.", arg: nil)],
-                 mode: options.mode, failed: true)
-        @unknown default:
-            break
+        let direct = await availability.status(from: source, to: target)
+
+        if direct != .installed {
+            // Apple groups languages into families and only ships models within
+            // them — Polish sits with en/ru/uk, German with the western set, so
+            // pl → de has no direct model however many languages are downloaded.
+            // Nearly everything pairs with English, so route through it.
+            // Checked one at a time: `&&` short-circuits through an autoclosure,
+            // which cannot carry an await.
+            let english = Locale.Language(identifier: "en")
+            var canPivot = code(of: source) != "en" && code(of: target) != "en"
+            if canPivot {
+                canPivot = await availability.status(from: source, to: english) == .installed
+            }
+            if canPivot {
+                canPivot = await availability.status(from: english, to: target) == .installed
+            }
+
+            if canPivot {
+                do {
+                    let toEnglish = try await TranslationSession(installedSource: source, target: english)
+                        .translate(options.text)
+                    let toTarget = try await TranslationSession(installedSource: english, target: target)
+                        .translate(toEnglish.targetText)
+                    emit([Row(title: toTarget.targetText,
+                              subtitle: "\(displayName(of: source)) → English → \(displayName(of: target))",
+                              arg: toTarget.targetText)],
+                         mode: options.mode)
+                } catch {
+                    emit([Row(title: "Translation failed",
+                              subtitle: "\(error.localizedDescription)", arg: nil)],
+                         mode: options.mode, failed: true)
+                }
+            }
+
+            switch direct {
+            case .supported:
+                emit([Row(title: "\(displayName(of: source)) → \(displayName(of: target)) is not downloaded",
+                          subtitle: "System Settings > General > Language & Region > Translation Languages",
+                          arg: nil)],
+                     mode: options.mode, failed: true)
+            default:
+                emit([Row(title: "\(displayName(of: source)) → \(displayName(of: target)) is not supported",
+                          subtitle: "Run offtranslate --list to see what is available.", arg: nil)],
+                     mode: options.mode, failed: true)
+            }
         }
 
         do {
