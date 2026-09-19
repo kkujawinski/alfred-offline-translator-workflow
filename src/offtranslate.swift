@@ -121,7 +121,13 @@ OPTIONS
 
 LANG is a BCP-47 code: en, pl, pt-BR, zh-Hans.
 With no --pair/--from/--to, the pair comes from OFFTRANSLATE_PAIR (default "en,pl").
-A leading ">LANG " in the text overrides the target, e.g. offtranslate ">de hello".
+
+The first word can override the languages inline:
+  ">de hello"          translate into German, detecting the source
+  "de>en Schmetterling"  German to English
+  "de> Schmetterling"    from German, into the other half of the pair
+
+When no direct model exists for a pair, the translation routes through English.
 """
 
 func parse(_ argv: [String]) -> Options {
@@ -150,14 +156,34 @@ func parse(_ argv: [String]) -> Options {
     }
     options.text = words.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
 
-    // Inline target override: ">de some text"
-    if options.text.hasPrefix(">") {
-        let rest = options.text.dropFirst()
-        let head = rest.prefix { !$0.isWhitespace }
-        if !head.isEmpty {
-            options.to = Locale.Language(identifier: String(head))
-            options.pair = nil
-            options.text = rest.dropFirst(head.count).trimmingCharacters(in: .whitespacesAndNewlines)
+    // Inline language override on the first word:
+    //   ">de text"      target German, source detected
+    //   "de>en text"    German to English
+    //   "de> text"      from German, target is the other half of the pair
+    let token = String(options.text.prefix { !$0.isWhitespace })
+    if token.contains(">") {
+        let halves = token.split(separator: ">", maxSplits: 1, omittingEmptySubsequences: false)
+        let left = halves.count > 0 ? String(halves[0]) : ""
+        let right = halves.count > 1 ? String(halves[1]) : ""
+
+        // Only treat it as an override when both halves look like language
+        // codes, so ordinary text beginning with ">" is still translated.
+        func isCode(_ string: String) -> Bool {
+            !string.isEmpty && string.count <= 10 && string.allSatisfy { $0.isLetter || $0 == "-" }
+        }
+        let leftOK = left.isEmpty || isCode(left)
+        let rightOK = right.isEmpty || isCode(right)
+
+        if leftOK, rightOK, !(left.isEmpty && right.isEmpty) {
+            if isCode(left) { options.from = Locale.Language(identifier: left) }
+            if isCode(right) {
+                options.to = Locale.Language(identifier: right)
+                // An explicit target replaces the configured pair; a bare
+                // "de>" keeps it, because the pair supplies the target.
+                options.pair = nil
+            }
+            options.text = options.text.dropFirst(token.count)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
     return options

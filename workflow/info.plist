@@ -105,7 +105,7 @@
 				<key>scriptfile</key>
 				<string></string>
 				<key>subtext</key>
-				<string>Detects the direction. Prefix &gt;de to force a target language, or type ? for the language list.</string>
+				<string>Detects the direction. Use &gt;de or de&gt;en to set languages, or type ? for the language list.</string>
 				<key>title</key>
 				<string>Translate offline</string>
 				<key>type</key>
@@ -252,7 +252,9 @@ Translate text between two languages without a network connection via the `t` ke
 * &lt;kbd&gt;↩︎&lt;/kbd&gt; Copy the translation to the clipboard
 * &lt;kbd&gt;⌘&lt;/kbd&gt;&lt;kbd&gt;Y&lt;/kbd&gt; Quick Look the translation in large type
 
-Force a target language by prefixing it with `&gt;`, as in `t &gt;de Good morning`. Type `t ?` to list every supported language and whether its model is downloaded.
+Set the languages with the first word: `t &gt;de Good morning` translates into German, and `t de&gt;en Schmetterling` gives the direction explicitly. Type `t ?` to list every supported language and whether its model is downloaded.
+
+Apple ships translation models in families, so some combinations have no direct model — Polish to German, for example. Those route through English automatically.
 
 ![Listing the available languages](images/languages.jpeg)
 

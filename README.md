@@ -135,6 +135,24 @@ offtranslate [options] [text...]           # text also accepted on stdin
 `LANG` is a BCP-47 code: `en`, `pl`, `pt-BR`, `zh-Hans`. With no `--pair`/`--from`/`--to`,
 the default pair is read from `OFFTRANSLATE_PAIR` (falling back to `en,pl`).
 
+The first word of the text can override the languages inline, which is what the Alfred
+keyword uses:
+
+| Prefix | Meaning |
+|---|---|
+| `>de` | translate into German, detect the source |
+| `de>en` | German to English |
+| `de>` | from German, into the other half of the pair |
+
+Text that merely starts with `>` is still translated — the override only applies when both
+halves look like language codes.
+
+**Cross-family pairs route through English.** Apple ships models in families (Polish sits
+with `en`/`ru`/`uk`, German with the western set), so `pl → de` has no direct model however
+many languages are downloaded. When the direct pair is missing and both sides pair with
+English, the CLI translates in two hops and says so in the subtitle:
+`Polish → English → German`. That costs one extra hop, roughly 0.3 s.
+
 ```
 $ offtranslate --plain --to de "Good morning, how are you today?"
 Guten Morgen, wie geht es dir heute?
@@ -161,7 +179,8 @@ row explaining the fix. In `--plain` mode those same cases go to stderr with exi
 | Trigger | What it does |
 |---|---|
 | `t <text>` | Default pair, direction auto-detected, <kbd>Enter</kbd> copies |
-| `t >de <text>` | Inline target override, no extra keyword needed |
+| `t >de <text>` | Translate into German, source detected |
+| `t de>en <text>` | Both languages given explicitly |
 | `t ?` | List every language and whether its model is downloaded |
 | Universal Action → *Translate offline* | Translate the selection and paste it over the original |
 | Hotkey (unassigned by default) | Same, without opening Alfred |
