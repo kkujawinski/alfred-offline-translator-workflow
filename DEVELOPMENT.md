@@ -156,8 +156,8 @@ Measured on an Apple Silicon Mac, macOS 26.6.2:
 Roughly 0.35 s of that is the translation itself and is unavoidable; process startup and the
 service handshake account for the rest. Reusing one `TranslationSession` in-process drops repeat
 calls to ~80 ms, so a resident daemon would save ~150–200 ms per call — not enough to justify
-the complexity, so the Script Filter uses a 0.3 s typing delay instead and only fires once you
-pause.
+the complexity. The Script Filter uses Alfred's shortest custom typing delay (0.1 s) and
+terminates the previous run when a new one starts, so stale translations never queue up.
 
 ---
 
